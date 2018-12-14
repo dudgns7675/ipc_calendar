@@ -5,7 +5,7 @@
 	3 : client -> server memo see request
 	3*pid : server -> client memo see response
 */
-#define BUFF_SIZE 64
+#define BUFF_SIZE 32
 #define MEMO_NUMS 10
 #define KEY 7675
 
