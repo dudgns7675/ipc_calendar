@@ -109,7 +109,6 @@ int sf2_save_cal(t_caldata caldata){
 	char temppath[100] = {'\0',};
 	char *tp = filepath;
 	if(filecheck(caldata.calName) != 1){
-		printf("요청받은 캘린더가 존재하지 않습니다!\n");
 		return -1;
 	}
 	else{
@@ -118,15 +117,18 @@ int sf2_save_cal(t_caldata caldata){
 	}
 
 	if(caldata.flag == 1){
-		printf("flag1 진입\n");
 		fp = fopen(filepath, "r+t");
 		if(fp == NULL){
-			printf("파일 오픈 실패!");
-			exit(1);
+			printf("\n파일 오픈 실패!\n");
+			return -1;
 		}
 		tp = temppath;
 		strcat(tp, "./calendars/temp");
-		ftemp = fopen(temppath, "w");
+		ftemp = fopen(temppath, "wt");
+		if(ftemp == NULL){
+			printf("\n임시파일 오픈 실패!\n");
+			return -1;
+		}
 
 		while(!feof(fp)){
 			fgets(buf, sizeof(buf), fp);
@@ -138,7 +140,6 @@ int sf2_save_cal(t_caldata caldata){
 					fputs(buf, ftemp);
 					if(atoi(buf) == caldata.memoNum){
 						fgets(buf, sizeof(buf), fp);
-						//fputs(caldata.memo[i], ftemp);
 						fprintf(ftemp, "%s\n", caldata.memo[i]);
 						continue;
 					}
@@ -164,7 +165,6 @@ int sf2_save_cal(t_caldata caldata){
 			system(command);
 			fclose(fp);
 			fclose(ftemp);
-			printf("캘린더를 수정했습니다.\n");
 			return 1;
 		}
 		else{
@@ -181,20 +181,22 @@ int sf2_save_cal(t_caldata caldata){
 		
 			fclose(fp);
 			fclose(ftemp);
-			printf("캘린더를 수정했습니다.\n");
 			return 1;
 		}
 	}
 	else if(caldata.flag == 2){
-		printf("flag2 진입\n");
-		fp = fopen(filepath, "r+");
+		fp = fopen(filepath, "r+t");
 		if(fp == NULL){
-			printf("파일 오픈 실패!");
-			exit(1);
+			printf("\n파일 오픈 실패!\n");
+			return -1;
 		}
 		tp = temppath;
 		strcat(tp, "./calendars/temp");
-		ftemp = fopen(temppath, "w");
+		ftemp = fopen(temppath, "wt");
+		if(ftemp == NULL){
+			printf("\n임시파일 오픈 실패!\n");
+			return -1;
+		}
 		while(!feof(fp)){
 			fgets(buf, sizeof(buf), fp);
 			if(atoi(buf) == caldata.date){
@@ -218,7 +220,6 @@ int sf2_save_cal(t_caldata caldata){
 		
 		fclose(fp);
 		fclose(ftemp);
-		printf("메모가 삭제되었습니다.\n");
 		return 1;
 	}
 }
@@ -235,15 +236,12 @@ int sf3_transfer_cal(t_caldata caldata, int msqid){
 	sndcal.flag = ((int)caldata.flag * caldata.pid);
 
 	if(filecheck(caldata.calName) != 1){
-		printf("요청받은 캘린더가 존재하지 않습니다!\n");
-		printf("실패 정보를 전송합니다.\n");
+		//file not exist
 		sndcal.memoNum = -1;
 		if(-1 == msgsnd(msqid, &sndcal, sizeof(t_caldata)-sizeof(long), 0)){
-				printf("전송에 실패했습니다!\n");
 				return -1;
 			}
-
-		return -1;
+		return 1;
 	}
 	else{
 		strcat(tp, "./calendars/");
@@ -255,7 +253,7 @@ int sf3_transfer_cal(t_caldata caldata, int msqid){
 	for(i=0; i<sizeof(sndcal.memo); i++)
 		*(tp+i) = '\0';
 	
-	fp = fopen(filepath, "r");
+	fp = fopen(filepath, "rt");
 	while(!feof(fp)){
 		fgets(buf, BUFF_SIZE, fp);
 		if(atoi(buf) == caldata.date){
@@ -267,19 +265,15 @@ int sf3_transfer_cal(t_caldata caldata, int msqid){
 			}
 			fclose(fp);
 			if(-1 == msgsnd(msqid, &sndcal, sizeof(t_caldata)-sizeof(long), 0)){
-				printf("전송에 실패했습니다!\n");
 				return -1;
 			}
-			printf("요청받은 캘린더 정보를 전송했습니다.\n");
 			return 1;
 		}
 	}
-	printf("지정한 날짜의 메모가 존재하지 않습니다.\n");
-	printf("실패 정보를 전송합니다.\n");
+	//memo not exist
 	sndcal.memoNum = -2;
 	if(-1 == msgsnd(msqid, &sndcal, sizeof(t_caldata)-sizeof(long), 0)){
-		printf("전송에 실패했습니다!\n");
-		return -1;
+		return 1;
 	}
 
 	fclose(fp);
@@ -295,7 +289,7 @@ int sf4_see_cal(){
 	char *tp = filepath;
 	FILE *fp;
 
-	printf("캘린더를 조회합니다.\b");
+	printf("캘린더를 조회합니다.\n");
 	printf("조회할 캘린더 이름을 입력해 주세요 : ");
 	scanf("%s", calName);
 	printf("조회할 날짜를 입력해 주세요 : ");
@@ -317,7 +311,7 @@ int sf4_see_cal(){
 					printf("%d. %s", i+1, buf);
 				}
 				fclose(fp);
-				printf("엔터를 누르면 메인 화면으로 돌아갑니다.\b");
+				printf("엔터를 누르면 메인 화면으로 돌아갑니다.\n");
 				getchar();
 				system("clear");
 				return 1;
@@ -337,6 +331,7 @@ int sf4_see_cal(){
 
 void *catch_thread(void *rcv_msqid){
 	t_caldata rcvdata;
+	int check = 0;
 	int msqid = *((int*)rcv_msqid);
 	
 	rcvdata.flag = 0;
@@ -344,20 +339,20 @@ void *catch_thread(void *rcv_msqid){
 		sleep(1);
 		msgrcv(msqid, &rcvdata, sizeof(t_caldata)-sizeof(long), 1, IPC_NOWAIT);
 		if(rcvdata.flag == 1){
-			printf("flag1 catch!\n");
-			sf2_save_cal(rcvdata);
+			if(-1 == (check = sf2_save_cal(rcvdata)))
+				printf("\n쓰레드에서 오류가 발생했습니다.\n");
 			rcvdata.flag = 0;
 		}
 		msgrcv(msqid, &rcvdata, sizeof(t_caldata)-sizeof(long), 2, IPC_NOWAIT);
 		if(rcvdata.flag == 2){
-			printf("flag2 catch!\n");
-			sf2_save_cal(rcvdata);
+			if(-1 == (check = sf2_save_cal(rcvdata)))
+				printf("\n쓰레드에서 오류가 발생했습니다.\n");
 			rcvdata.flag = 0;
 		}
 		msgrcv(msqid, &rcvdata, sizeof(t_caldata)-sizeof(long), 3, IPC_NOWAIT);
 		if(rcvdata.flag == 3){
-			printf("flag3 catch!\n");
-			sf3_transfer_cal(rcvdata, msqid);
+			if(-1 == (check = sf3_transfer_cal(rcvdata, msqid)))
+				printf("\n쓰레드에서 오류가 발생했습니다.\n");
 			rcvdata.flag = 0;
 		}
 	}
@@ -387,10 +382,11 @@ void main(){
 		exit(1);
 	}
 
+	system("clear");
 	while(1){
 		printf("원하시는 기능을 선택해 주세요.\n");
 		printf("1: 캘린더 관리\n");
-		printf("2: 캘린저 조회\n");
+		printf("2: 캘린더 조회\n");
 		printf("9: 종료\n");
 		printf("원하시는 기능 번호를 입력해 주세요 : ");
 		scanf("%d", &funcNum);
@@ -411,6 +407,5 @@ void main(){
 			system("clear");
 			printf("잘못된 입력입니다! 다시 입력해 주세요.\n");
 		}
-
 	}
 }
